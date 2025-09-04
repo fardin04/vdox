@@ -21,8 +21,15 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
         throw new ApiError("User with this email or username already exists", 409);
     }
 
-    const avatarLocalPath = req.files?.avatar?.[0]?.path;
-    const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+    // Find avatar and coverImage files from req.files array (for upload.any())
+    let avatarFile = null;
+    let coverImageFile = null;
+    if (Array.isArray(req.files)) {
+      avatarFile = req.files.find(f => f.fieldname === "avatar");
+      coverImageFile = req.files.find(f => f.fieldname === "coverImage");
+    }
+    const avatarLocalPath = avatarFile?.path;
+    let coverImageLocalPath = coverImageFile?.path || "";
 
     if(!avatarLocalPath){
       throw new ApiError("Avatar image is required", 400);
@@ -30,15 +37,19 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
 
     // Upload images to Cloudinary
   const avatar = await cloudinaryUpload(avatarLocalPath);
-  let coverImage = await cloudinaryUpload(coverImageLocalPath);
+    let coverImage = "";
+    if (coverImageLocalPath) {
+      const uploadedCover = await cloudinaryUpload(coverImageLocalPath);
+      if (uploadedCover && uploadedCover.secure_url) {
+        coverImage = uploadedCover.secure_url;
+      }
+    }
 
   if(!avatar){
     throw new ApiError("Avatar upload failed", 500);
   }
 
-  if(!coverImage){
-    throw new ApiError("Cover image upload failed", 500);
-  }
+  // No error thrown if coverImage is not uploaded; just set to empty string
 
     // Create new user
     const user = await User.create({
@@ -47,7 +58,7 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
         email,
         password,
         avatar: avatar.secure_url,
-        coverImage: coverImage?.secure_url || null,
+          coverImage,
     })
 
     const newUser = await User.findById(user.id).select('-password -refreshToken');
