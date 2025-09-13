@@ -4,6 +4,29 @@ import { User } from "../models/user.model.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 import { ApiRes } from "../utils/ApiRes.js";
 
+const generateAccessAndRefreshToken = async(userId) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new ApiError("User not found", 404);
+    }
+
+    const accessToken = user.generateAccessToken();
+    const refreshToken = user.generateRefreshToken();
+    
+    // Save refresh token to database
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+ 
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new ApiError("Token generation failed", 500);
+    
+  }
+  
+  
+}
+
 const registerControllerUser = asyncHandler(async(req,res) =>{
   const { fullName, username, email, password } = req.body;
   console.log("fullName:",fullName);
@@ -21,23 +44,19 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
         throw new ApiError("User with this email or username already exists", 409);
     }
 
-    // Find avatar and coverImage files from req.files array (for upload.any())
-    let avatarFile = null;
-    let coverImageFile = null;
-    if (Array.isArray(req.files)) {
-      avatarFile = req.files.find(f => f.fieldname === "avatar");
-      coverImageFile = req.files.find(f => f.fieldname === "coverImage");
-    }
-    const avatarLocalPath = avatarFile?.path;
-    let coverImageLocalPath = coverImageFile?.path || "";
+    // Multer.fields provides req.files as an object with arrays for each field
+    const avatarLocalPath = req.files?.avatar?.[0]?.path || null;
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path || null;
 
-    if(!avatarLocalPath){
-      throw new ApiError("Avatar image is required", 400);
+    // Upload images to Cloudinary (both optional)
+    let avatar = null;
+    let coverImage = null;
+    if (avatarLocalPath) {
+      avatar = await cloudinaryUpload(avatarLocalPath);
+      if (!avatar) {
+        throw new ApiError("Avatar upload failed", 500);
+      }
     }
-
-    // Upload images to Cloudinary
-  const avatar = await cloudinaryUpload(avatarLocalPath);
-    let coverImage = "";
     if (coverImageLocalPath) {
       const uploadedCover = await cloudinaryUpload(coverImageLocalPath);
       if (uploadedCover && uploadedCover.secure_url) {
@@ -45,21 +64,15 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
       }
     }
 
-  if(!avatar){
-    throw new ApiError("Avatar upload failed", 500);
-  }
-
-  // No error thrown if coverImage is not uploaded; just set to empty string
-
     // Create new user
-    const user = await User.create({
-        fullName,
-        username:username.toLowerCase(),
-        email,
-        password,
-        avatar: avatar.secure_url,
-          coverImage,
-    })
+  const user = await User.create({
+    fullName,
+    username:username.toLowerCase(),
+    email,
+    password,
+    avatar: avatar?.secure_url || null,
+    coverImage: coverImage || null,
+  })
 
     const newUser = await User.findById(user.id).select('-password -refreshToken');
 
@@ -72,4 +85,59 @@ const registerControllerUser = asyncHandler(async(req,res) =>{
     )
 })
 
-export { registerControllerUser };
+const loginUser = asyncHandler(async(req,res) =>{
+  const {username, email, password} = req.body;
+
+  if(!username && !email){
+    throw new ApiError("Username or email are required", 400);
+  }
+
+  const user = await User.findOne({$or: [{username: username.toLowerCase()}, {email}]});
+
+  if(!user){
+    throw new ApiError("User not found", 404);
+  }
+
+  const isPasswordValid = await user.comparePassword(password);
+  
+  if(!isPasswordValid){
+    throw new ApiError("Invalid password", 401);
+  }
+
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+
+  const loggedInUser = await User.findById(user._id).select('-password -refreshToken');
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  };
+  return res.status(200).cookie('refreshToken', refreshToken, options).cookie('accessToken', accessToken, options).json(
+    new ApiRes(200,"User logged in successfully", { user: loggedInUser, accessToken, refreshToken })
+  );
+
+})
+
+const logoutUser = asyncHandler(async(req,res) =>{
+
+  User.findByIdAndUpdate(req.user._id, { refreshToken: null }, { new: true }).exec();
+
+  const options = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    maxAge: 0 // Expire immediately
+  };
+
+  res.clearCookie('refreshToken', options);
+  res.clearCookie('accessToken', options);
+
+  return res.status(200).json(
+    new ApiRes(200,"User logged out successfully", null)
+  );
+
+})
+
+export { registerControllerUser, loginUser,logoutUser };

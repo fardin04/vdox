@@ -7,8 +7,8 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true, lowercase: true, trim: true,},
     fullName: { type: String, required: true, trim: true,index: true },
     password: { type: String, required: true },
-    avatar: { type: String,required:true, default: null },
-    coverImage: { type: String, default: null },
+  avatar: { type: String, default: null },
+  coverImage: { type: String, default: null },
     watchHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Video' }],
     refreshToken: { type: String },
 
@@ -24,37 +24,27 @@ userSchema.pre("save", async function (next) {
 });
 
 // Method to compare password
-userSchema.methods.comparePassword = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
+userSchema.methods.comparePassword = async function (password) {
+    return await bcrypt.compare(password, this.password);
 };
 
 // generate access token
 
 userSchema.methods.generateAccessToken = function() {
-  jwt.sign({
+  return jwt.sign({
     id: this._id,
     username: this.username,
     email: this.email
-  }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRATION }, (err, token) => {
-    if (err) {
-      throw new Error('Error generating access token');
-    }
-    return token;
-  });   
+  }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRATION });
 }
 
 // generate refresh token
 userSchema.methods.generateRefreshToken = function() {
-  jwt.sign({
+  return jwt.sign({
     id: this._id,
     username: this.username,
     email: this.email
-  }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXPIRATION }, (err, token) => {
-    if (err) {
-      throw new Error('Error generating refresh token');
-    }
-    return token;
-  });
+  }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: process.env.REFRESH_TOKEN_EXPIRATION });
 }
 
 export const User = mongoose.model("User", userSchema);
