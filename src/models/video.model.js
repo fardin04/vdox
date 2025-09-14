@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 
 const videoSchema = new mongoose.Schema({
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     videoFile: { type: String, required: true },
     title: { type: String, required: true, trim: true, index: true },
     description: { type: String, default: null, trim: true },

@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { cloudinaryUpload } from "../utils/cloudinary.js";
 import { ApiRes } from "../utils/ApiRes.js";
 import jwt from "jsonwebtoken";
+import { timeStamp } from "console";
 
 const generateAccessAndRefreshToken = async(userId) => {
   try {
@@ -259,4 +260,77 @@ const updateUserProfile = asyncHandler(async(req,res) =>{
   );
 })
 
-export { registerControllerUser, loginUser,logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateUserProfile };
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  if (!username?.trim()) {
+    throw new ApiError(400, "Username is required");
+  }
+
+  const channel = await User.aggregate([
+    {
+      $match: { username: username.toLowerCase() }
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers"
+      }
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo"
+      }
+    },
+    {
+      $addFields: {
+        subscribersCount: { $size: "$subscribers" },
+        subscribedToCount: { $size: "$subscribedTo" },
+        isSubscribed: {
+          $cond: {
+            if: {
+              $in: [
+                req.user?._id,
+                {
+                  $map: {
+                    input: "$subscribers",
+                    as: "s",
+                    in: "$$s.subscriber"
+                  }
+                }
+              ]
+            },
+            then: true,
+            else: false
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        password: 0,
+        refreshToken: 0,
+        subscribers: 0,
+        subscribedTo: 0
+      }
+    }
+  ]);
+
+  const [userProfile] = channel;
+
+  if (!userProfile) {
+    throw new ApiError(404, "User not found");
+  }
+
+  return res.status(200).json(
+    new ApiRes(200, userProfile, "User channel profile fetched successfully")
+  );
+});
+
+
+export { registerControllerUser, loginUser,logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateUserProfile, getUserChannelProfile };
