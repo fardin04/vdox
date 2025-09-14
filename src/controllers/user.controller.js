@@ -177,4 +177,86 @@ const refreshAccessToken = asyncHandler(async(req,res)=>{
   }
 })
 
-export { registerControllerUser, loginUser,logoutUser, refreshAccessToken };
+const changeCurrentPassword = asyncHandler(async(req,res) =>{
+  const { oldPassword, newPassword } = req.body;
+
+  if(!oldPassword || !newPassword){
+    throw new ApiError("Old and new passwords are required", 400);
+  }
+
+  const user = await User.findById(req.user._id);
+
+  if(!user){
+    throw new ApiError("User not found", 404);
+  }
+
+  const isPasswordValid = await user.comparePassword(oldPassword);
+
+  if(!isPasswordValid){
+    throw new ApiError("Old password is incorrect", 401);
+  }
+
+  user.password = newPassword;
+  await user.save({validateBeforeSave: false});
+
+  return res.status(200).json(
+    new ApiRes(200,{},"Password changed successfully")
+  );
+
+})
+
+const getCurrentUser = asyncHandler(async(req,res) =>{
+  const user = await User.findById(req.user._id).select('-password -refreshToken');
+
+  if(!user){
+    throw new ApiError("User not found", 404);
+  }
+
+  return res.status(200).json(
+    new ApiRes(200,user,"Current user fetched successfully")
+  );
+
+});
+
+const updateUserProfile = asyncHandler(async(req,res) =>{
+  const { fullName, email } = req.body;
+
+  // Multer.fields provides req.files as an object with arrays for each field
+  const avatarLocalPath = req.files?.avatar?.[0]?.path || null;
+  const coverImageLocalPath = req.files?.coverImage?.[0]?.path || null;
+
+  const updateData = {};
+
+  if(fullName) updateData.fullName = fullName;
+  if(email) updateData.email = email;
+
+ if(!(avatarLocalPath || coverImageLocalPath || fullName || email)){
+    throw new ApiError("At least one field (fullName, email, avatar, coverImage) is required to update", 400);
+  }
+
+  // Upload images to Cloudinary (both optional)
+  if (avatarLocalPath) {
+    const avatar = await cloudinaryUpload(avatarLocalPath);
+    if (avatar) {
+      updateData.avatar = avatar.secure_url;
+    }
+  }
+  if (coverImageLocalPath) {
+    const coverImage = await cloudinaryUpload(coverImageLocalPath);
+    if (coverImage) {
+      updateData.coverImage = coverImage.secure_url;
+    }
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(req.user._id, updateData, { new: true, runValidators: true }).select('-password -refreshToken');
+
+  if(!updatedUser){
+    throw new ApiError("User not found or update failed", 404);
+  }
+
+  return res.status(200).json(
+    new ApiRes(200,updatedUser,"User profile updated successfully")
+  );
+})
+
+export { registerControllerUser, loginUser,logoutUser, refreshAccessToken, changeCurrentPassword, getCurrentUser, updateUserProfile };
