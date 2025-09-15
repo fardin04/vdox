@@ -120,4 +120,4 @@ const getAllCommentsOfVideo = asyncHandler(async(req, res) => {
 
 
 
-export { addComment, updateComment, deleteComment };
+export { addComment, updateComment, deleteComment, getAllCommentsOfVideo };

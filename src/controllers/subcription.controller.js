@@ -2,7 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js ";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { ApiRes } from "../utils/ApiRes.js";
-import { Subscription } from "../models/subcription.model.js";
+import { Subcription } from "../models/subcription.model.js";
 import mongoose from "mongoose";
 
 //toggle subscription
@@ -25,7 +25,7 @@ const toggleSubscription = asyncHandler(async(req, res) => {
         throw new ApiError("Channel not found", 404);
     }
 
-    const existingSubscription = await Subscription.findOne({
+    const existingSubscription = await Subcription.findOne({
         subscriber: req.user._id,
         channel: channelId
     });
@@ -36,7 +36,7 @@ const toggleSubscription = asyncHandler(async(req, res) => {
         return res.status(200).json(new ApiRes("Unsubscribed successfully", 200, null));
     } else {
         // Subscribe
-        const newSubscription = new Subscription({
+        const newSubscription = new Subcription({
             subscriber: req.user._id,
             channel: channelId
         });
@@ -62,7 +62,7 @@ const getUserChannelSubscribers = asyncHandler(async(req, res) => {
         throw new ApiError("Channel not found", 404);
     }
 
-    const subscribers = await Subscription.find({ channel: channelId }).populate('subscriber', '-password -refreshToken -__v -createdAt -updatedAt');
+    const subscribers = await Subcription.find({ channel: channelId }).populate('subscriber', '-password -refreshToken -__v -createdAt -updatedAt');
 
     res.status(200).json(new ApiRes("Subscribers fetched successfully", 200, subscribers.map(sub => sub.subscriber)));
 
@@ -72,7 +72,7 @@ const getUserChannelSubscribers = asyncHandler(async(req, res) => {
 
 const getSubscribedChannels = asyncHandler(async(req, res) => {
 
-    const subscriptions = await Subscription.find({ subscriber: req.user._id }).populate('channel', '-password -refreshToken -__v -createdAt -updatedAt');
+    const subscriptions = await Subcription.find({ subscriber: req.user._id }).populate('channel', '-password -refreshToken -__v -createdAt -updatedAt');
 
     res.status(200).json(new ApiRes("Subscribed channels fetched successfully", 200, subscriptions.map(sub => sub.channel)));
 

@@ -11,4 +11,4 @@ const playlistSchema = new mongoose.Schema({
 
 
 
-export const Blog = mongoose.model("Blog", playlistSchema);
+export const Playlist = mongoose.model("Playlist", playlistSchema);
