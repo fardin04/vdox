@@ -6,7 +6,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiRes } from "../utils/ApiRes.js";
 
 // Create a new blog post
- const createBlog = asyncHandler(async (req, res) => {
+const createBlog = asyncHandler(async (req, res) => {
     const { content } = req.body;
 
     if (!content) {
@@ -25,13 +25,17 @@ import { ApiRes } from "../utils/ApiRes.js";
 
 // get blogs of the logged-in user
 
- const getUserBlogs = asyncHandler(async (req, res) => {
-    const blogs = await Blog.find({ owner: req.user._id }).populate('owner', 'username email').exec();
-    res.status(200).json(new ApiRes(200, blogs, "User blogs fetched successfully"));
+const getUserBlogs = asyncHandler(async (req, res) => {
+    const blogs = await Blog.find({ owner: req.user._id })
+        .populate("owner", "username email")
+        .exec();
+    res.status(200).json(
+        new ApiRes(200, blogs, "User blogs fetched successfully")
+    );
 });
 
 // update a blog post
- const updateBlog = asyncHandler(async (req, res) => {
+const updateBlog = asyncHandler(async (req, res) => {
     const { blogId } = req.params;
     const { content } = req.body;
 
@@ -57,7 +61,7 @@ import { ApiRes } from "../utils/ApiRes.js";
 });
 
 // delete a blog post
- const deleteBlog = asyncHandler(async (req, res) => {
+const deleteBlog = asyncHandler(async (req, res) => {
     const { blogId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(blogId)) {
